@@ -148,7 +148,7 @@ pub struct Pixels<'a> {
 impl<'a> Pixels<'a> {
     fn new(sample: &'a SampleBuffer) -> Self {
         let ibuf = unsafe { CMSampleBufferGetImageBuffer(sample.inner) };
-        debug_assert!(0 == unsafe { CVPixelBufferLockBaseAddress(ibuf, 1) });
+        assert_eq!(0, unsafe { CVPixelBufferLockBaseAddress(ibuf, 1) });
         let _address = unsafe { CVPixelBufferGetBaseAddress(ibuf) };
         let stride = unsafe { CVPixelBufferGetBytesPerRow(ibuf) };
         let width = unsafe { CVPixelBufferGetWidth(ibuf) };
@@ -182,6 +182,6 @@ impl<'a> Pixels<'a> {
 
 impl Drop for Pixels<'_> {
     fn drop(&mut self) {
-        debug_assert!(0 == unsafe { CVPixelBufferUnlockBaseAddress(self.ibuf, 1) });
+        assert_eq!(0, unsafe { CVPixelBufferUnlockBaseAddress(self.ibuf, 1) });
     }
 }
