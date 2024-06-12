@@ -3,9 +3,8 @@ use std::ptr::null_mut;
 use std::sync::atomic::AtomicPtr;
 use std::sync::{Arc, Condvar, Mutex};
 
-use icrate::Foundation::NSObjectProtocol;
+use objc2_foundation::NSObjectProtocol;
 use objc2::{
-    declare::{Ivar, IvarDrop},
     mutability::Mutable,
     rc::Id,
     runtime::NSObject,
@@ -14,17 +13,21 @@ use objc2::{
 
 use super::{CMSampleBuffer, CMSampleBufferRef, SampleBuffer};
 
-declare_class!(
-    pub struct SampleBufferDelegate {
-        slot: IvarDrop<Box<Arc<Slot>>, "_slot">,
-    }
+pub struct SampleBufferIvars {
+    slot: Box<Arc<Slot>>,
+}
 
-    mod ivars;
+declare_class!(
+    pub struct SampleBufferDelegate;
 
     unsafe impl ClassType for SampleBufferDelegate {
         type Super = NSObject;
         type Mutability = Mutable;
         const NAME: &'static str = "SampleBufferDelegate";
+    }
+
+    impl DeclaredClass for SampleBufferDelegate {
+        type Ivars = SampleBufferIvars;
     }
 
     unsafe impl SampleBufferDelegate {
@@ -55,18 +58,22 @@ declare_class!(
 
 impl SampleBufferDelegate {
     pub fn new() -> Id<Self> {
-        let mut this: Id<Self> = unsafe { msg_send_id![Self::class(), new] };
-        Ivar::write(&mut this.slot, Box::new(Arc::new(Slot::new())));
+        let this = SampleBufferDelegate::alloc();
+        let this = this.set_ivars(SampleBufferIvars {
+            slot: Box::new(Arc::new(Slot::new())),
+        });
+        let this = unsafe { msg_send_id![super(this), init] };
         this
     }
 
     pub fn slot(&self) -> Arc<Slot> {
-        (**self.slot).clone()
+        (*self.ivars().slot).clone()
     }
 
     fn set_slot(&mut self, sample: CMSampleBufferRef) {
-        self.slot.set_sample(sample);
-        self.slot.notify_all();
+        let slot = &self.ivars().slot;
+        slot.set_sample(sample);
+        slot.notify_all();
     }
 }
 

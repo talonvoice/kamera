@@ -1,7 +1,7 @@
 use std::ffi::*;
 use std::ptr::null;
 
-use icrate::Foundation::*;
+use objc2_foundation::*;
 use objc2::rc::Id;
 use objc2::runtime::NSObject;
 use objc2::*;

@@ -1,4 +1,4 @@
-use icrate::Foundation::{NSArray, NSObjectProtocol, NSString};
+use objc2_foundation::{NSArray, NSObjectProtocol, NSString};
 use objc2::rc::Id;
 use objc2::runtime::NSObject;
 use objc2::{extern_class, msg_send_id, mutability, ClassType};

@@ -1,4 +1,4 @@
-use icrate::Foundation::NSObjectProtocol;
+use objc2_foundation::NSObjectProtocol;
 use objc2::runtime::NSObject;
 use objc2::{extern_class, mutability, ClassType};
 

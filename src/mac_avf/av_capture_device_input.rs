@@ -1,4 +1,4 @@
-use icrate::Foundation::{NSError, NSObjectProtocol};
+use objc2_foundation::{NSError, NSObjectProtocol};
 use objc2::rc::Id;
 use objc2::runtime::NSObject;
 use objc2::{extern_class, msg_send_id, mutability, ClassType};

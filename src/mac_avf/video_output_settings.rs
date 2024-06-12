@@ -1,4 +1,4 @@
-use icrate::Foundation::*;
+use objc2_foundation::*;
 use objc2::rc::Id;
 
 pub fn video_settings_from_pixel_format(
@@ -28,6 +28,6 @@ fn video_settings_with_pixel_format(
     let mut settings = NSMutableDictionary::<NSString, NSNumber>::new();
     let px_number = NSNumber::new_u32(pixel_format);
     let px_format_type = NSString::from_str("PixelFormatType"); // kCVPixelBufferPixelFormatTypeKey
-    settings.insert(px_format_type, px_number);
+    settings.insert(&px_format_type, &px_number);
     settings
 }
