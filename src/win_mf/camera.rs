@@ -72,8 +72,8 @@ impl Camera {
             .map(|buffer: LockedBuffer| Frame { buffer })
     }
 
-    pub fn device(&self) -> Option<CameraDevice> {
-        Some(CameraDevice { id: self.device.id().to_string_lossy().to_string(), name: self.device.name() })
+    pub fn device(&self) -> CameraDevice {
+        CameraDevice { id: self.device.id().to_string_lossy().to_string(), name: self.device.name() }
     }
 
     pub fn set_device(&mut self, device: &CameraDevice) -> bool {

@@ -50,8 +50,8 @@ impl Camera {
         self.slot.wait_for_sample().map(|sample| Frame { sample })
     }
 
-    pub fn device(&mut self) -> Option<CameraDevice> {
-        return Some(CameraDevice { id: self.device.unique_id().to_string(), name: self.device.localized_name().to_string() })
+    pub fn device(&self) -> CameraDevice {
+        return CameraDevice { id: self.device.unique_id().to_string(), name: self.device.localized_name().to_string() }
     }
 
     pub fn set_device(&mut self, device: &CameraDevice) -> bool {

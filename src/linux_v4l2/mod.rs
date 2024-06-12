@@ -121,8 +121,8 @@ impl InnerCamera for Camera {
         }
     }
 
-    fn device(&self) -> Option<CameraDevice> {
-        Some(CameraDevice { id: self.device_path.clone(), name: self.device_name.as_ref().unwrap_or(&self.device_path).clone() })
+    fn device(&self) -> CameraDevice {
+        CameraDevice { id: self.device_path.clone(), name: self.device_name.as_ref().unwrap_or(&self.device_path).clone() }
     }
 
     fn set_device(&mut self, device: &CameraDevice) -> bool {

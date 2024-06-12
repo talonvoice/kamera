@@ -44,6 +44,10 @@ impl Camera {
         self.inner.wait_for_frame().map(|inner| Frame { inner })
     }
 
+    pub fn device(&self) -> CameraDevice {
+        self.inner.device()
+    }
+
     pub fn set_device(&mut self, device: &CameraDevice) -> bool {
         self.inner.set_device(device)
     }
@@ -80,7 +84,7 @@ pub(crate) trait InnerCamera: std::fmt::Debug {
     fn start(&self);
     fn stop(&self);
     fn wait_for_frame(&self) -> Option<Self::Frame>;
-    fn device(&self) -> Option<CameraDevice>;
+    fn device(&self) -> CameraDevice;
     fn set_device(&mut self, device: &CameraDevice) -> bool;
     fn device_list() -> Vec<CameraDevice>;
 }
