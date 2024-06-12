@@ -21,7 +21,7 @@ pub struct FrameData<'a> {
     inner: backend::FrameData<'a>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CameraDevice {
     pub id: String,
     pub name: String,
