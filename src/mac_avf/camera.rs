@@ -72,7 +72,7 @@ impl Camera {
         return false;
     }
 
-    pub fn device_list(&self) -> Vec<CameraDevice> {
+    pub fn device_list() -> Vec<CameraDevice> {
         AVCaptureDevice::all_video_devices()
             .iter()
             .map(|device| CameraDevice { id: device.unique_id().to_string(), name: device.localized_name().to_string() })

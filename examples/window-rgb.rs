@@ -17,8 +17,8 @@ fn main() {
 
     let mut camera = Camera::new_default_device();
     camera.start();
-    println!("{:?}", camera.device_list());
-    camera.set_device(&camera.device_list()[0]);
+    println!("{:?}", Camera::device_list());
+    camera.set_device(&Camera::device_list()[0]);
 
     event_loop.run(move |event, _x, control_flow| {
         *control_flow = ControlFlow::Poll;

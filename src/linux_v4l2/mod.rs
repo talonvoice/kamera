@@ -141,7 +141,7 @@ impl InnerCamera for Camera {
         return false;
     }
 
-    fn device_list(&self) -> Vec<CameraDevice> {
+    fn device_list() -> Vec<CameraDevice> {
         enum_devices()
             .iter()
             .map(|d| {

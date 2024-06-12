@@ -48,8 +48,8 @@ impl Camera {
         self.inner.set_device(device)
     }
 
-    pub fn device_list(&self) -> Vec<CameraDevice> {
-        self.inner.device_list()
+    pub fn device_list() -> Vec<CameraDevice> {
+        backend::Camera::device_list()
     }
 }
 
@@ -82,5 +82,5 @@ pub(crate) trait InnerCamera: std::fmt::Debug {
     fn wait_for_frame(&self) -> Option<Self::Frame>;
     fn device(&self) -> Option<CameraDevice>;
     fn set_device(&mut self, device: &CameraDevice) -> bool;
-    fn device_list(&self) -> Vec<CameraDevice>;
+    fn device_list() -> Vec<CameraDevice>;
 }

@@ -102,7 +102,7 @@ impl Camera {
         return false;
     }
 
-    pub fn device_list(&mut self) -> Vec<CameraDevice> {
+    pub fn device_list() -> Vec<CameraDevice> {
         enum_device_sources()
             .into_iter()
             .map(Device::new)
