@@ -1,6 +1,7 @@
 use super::*;
 use objc2::rc::Id;
 use std::sync::Arc;
+use crate::CameraDevice;
 
 #[derive(Debug)]
 pub struct Camera {
@@ -49,22 +50,33 @@ impl Camera {
         self.slot.wait_for_sample().map(|sample| Frame { sample })
     }
 
-    pub fn change_device(&mut self) {
-        let devices = AVCaptureDevice::all_video_devices();
-        let Some(index) = devices.iter().position(|d| d.unique_id() == self.device.unique_id())
-        else {
-            return;
-        };
-        let new_index = (index + 1) % devices.len();
-        if new_index == index {
-            return;
+    pub fn device(&mut self) -> Option<CameraDevice> {
+        return Some(CameraDevice { id: self.device.unique_id().to_string(), name: self.device.localized_name().to_string() })
+    }
+
+    pub fn set_device(&mut self, device: &CameraDevice) -> bool {
+        if device.id == self.device.unique_id().to_string() {
+            return true;
         }
-        let new_device = devices[new_index].retain();
-        let new_input = AVCaptureDeviceInput::from_device(&new_device).unwrap();
-        self.session.remove_input(&self.input);
-        self.device = new_device;
-        self.input = new_input;
-        self.session.add_input(&self.input);
+        let find_device = AVCaptureDevice::all_video_devices()
+            .into_iter()
+            .find(|d| d.unique_id().to_string() == device.id);
+        if let Some(new_device) = find_device {
+            let new_input = AVCaptureDeviceInput::from_device(&new_device).unwrap();
+            self.session.remove_input(&self.input);
+            self.device = new_device.retain();
+            self.input = new_input;
+            self.session.add_input(&self.input);
+            return true;
+        }
+        return false;
+    }
+
+    pub fn device_list(&self) -> Vec<CameraDevice> {
+        AVCaptureDevice::all_video_devices()
+            .iter()
+            .map(|device| CameraDevice { id: device.unique_id().to_string(), name: device.localized_name().to_string() })
+            .collect()
     }
 }
 
@@ -102,7 +114,7 @@ fn change_device() {
         .take(TEST_FRAMES)
         .count();
 
-    camera.change_device();
+    camera.set_device(camera.device_list().last());
 
     std::iter::from_fn(|| camera.wait_for_frame())
         .map(|s| println!("{s:?}"))

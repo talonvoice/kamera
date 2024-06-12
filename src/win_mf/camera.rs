@@ -1,4 +1,5 @@
 use super::mf::*;
+use crate::CameraDevice;
 
 use std::{sync::mpsc::*, time::Duration};
 
@@ -71,28 +72,42 @@ impl Camera {
             .map(|buffer: LockedBuffer| Frame { buffer })
     }
 
-    pub fn change_device(&mut self) {
-        let devices: Vec<Device> = enum_device_sources().into_iter().map(Device::new).collect();
-        let Some(index) = devices.iter().position(|d| d.id() == self.device.id()) else { return };
-        let new_index = (index + 1) % devices.len();
+    pub fn device(&self) -> Option<CameraDevice> {
+        Some(CameraDevice { id: self.device.id().to_string_lossy().to_string(), name: self.device.name() })
+    }
 
-        if new_index == index {
-            return;
+    pub fn set_device(&mut self, device: &CameraDevice) -> bool {
+        if device.id == self.device.id().to_string_lossy().to_string() {
+            return true;
         }
-        let new_device = devices[new_index].clone();
+        let find_device = enum_device_sources()
+            .into_iter()
+            .map(Device::new)
+            .find(|d| d.id().to_string_lossy().to_string() == device.id);
+        if let Some(new_device) == find_device {
+            let engine = new_capture_engine().unwrap();
+            let (event_tx, event_rx) = channel::<CaptureEngineEvent>();
+            let (sample_tx, sample_rx) = channel::<Option<IMFSample>>();
+            let event_cb = CaptureEventCallback { event_tx }.into();
+            let sample_cb = CaptureSampleCallback { sample_tx }.into();
 
-        let engine = new_capture_engine().unwrap();
-        let (event_tx, event_rx) = channel::<CaptureEngineEvent>();
-        let (sample_tx, sample_rx) = channel::<Option<IMFSample>>();
-        let event_cb = CaptureEventCallback { event_tx }.into();
-        let sample_cb = CaptureSampleCallback { sample_tx }.into();
+            init_capture_engine(&engine, Some(&new_device.source), &event_cb).unwrap();
 
-        init_capture_engine(&engine, Some(&new_device.source), &event_cb).unwrap();
+            *self = Camera { engine, device: new_device, event_rx, sample_rx, event_cb, sample_cb };
+            self.wait_for_event(CaptureEngineEvent::Initialized);
+            self.prepare_source_sink();
+            self.start(); // TODO watch out about playing state
+            return true;
+        }
+        return false;
+    }
 
-        *self = Camera { engine, device: new_device, event_rx, sample_rx, event_cb, sample_cb };
-        self.wait_for_event(CaptureEngineEvent::Initialized);
-        self.prepare_source_sink();
-        self.start(); // TODO watch out about playing state
+    pub fn device_list(&mut self) -> Vec<CameraDevice> {
+        enum_device_sources()
+            .into_iter()
+            .map(Device::new)
+            .map(|d| CameraDevice { id: d.id().to_string_lossy().to_string(), name: d.name() })
+            .collect()
     }
 }
 

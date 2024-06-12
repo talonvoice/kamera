@@ -21,6 +21,12 @@ pub struct FrameData<'a> {
     inner: backend::FrameData<'a>,
 }
 
+#[derive(Debug)]
+pub struct CameraDevice {
+    pub id: String,
+    pub name: String,
+}
+
 impl Camera {
     pub fn new_default_device() -> Self {
         Self { inner: backend::Camera::new_default_device() }
@@ -38,8 +44,12 @@ impl Camera {
         self.inner.wait_for_frame().map(|inner| Frame { inner })
     }
 
-    pub fn change_device(&mut self) {
-        self.inner.change_device();
+    pub fn set_device(&mut self, device: &CameraDevice) -> bool {
+        self.inner.set_device(device)
+    }
+
+    pub fn device_list(&self) -> Vec<CameraDevice> {
+        self.inner.device_list()
     }
 }
 
@@ -70,5 +80,7 @@ pub(crate) trait InnerCamera: std::fmt::Debug {
     fn start(&self);
     fn stop(&self);
     fn wait_for_frame(&self) -> Option<Self::Frame>;
-    fn change_device(&mut self);
+    fn device(&self) -> Option<CameraDevice>;
+    fn set_device(&mut self, device: &CameraDevice);
+    fn device_list(&self) -> Vec<String>;
 }

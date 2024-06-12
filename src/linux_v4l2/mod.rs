@@ -10,19 +10,16 @@ use std::marker::PhantomData;
 
 use std::sync::RwLock;
 
-use crate::InnerCamera;
+use crate::{InnerCamera, CameraDevice};
 
 pub struct Camera {
     device: RwLock<v4l::Device>,
-    device_name: String,
+    device_path: String,
+    device_name: Option<String>,
     stream: RwLock<Option<v4l::io::mmap::Stream<'static>>>,
 }
 
-fn name_or_path(device_node: &v4l::context::Node) -> String {
-    device_node.name().unwrap_or_else(|| device_node.path().to_string_lossy().to_string())
-}
-
-fn get_next_best_format(device: &Device) -> Format {
+fn get_next_best_format(device: &CameraDevice) -> Format {
     let _rgb = FourCC::new(b"RGB3");
     let mut fmt = device.format().expect("device.format()");
     let size = device
@@ -78,7 +75,8 @@ impl Camera {
         device.set_format(&get_next_best_format(&device)).unwrap();
         Self {
             device: RwLock::new(device),
-            device_name: name_or_path(node),
+            device_path: node.path().to_string_lossy().to_string(),
+            device_name: device_node.name().ok(),
             stream: RwLock::new(None),
         }
     }
@@ -123,20 +121,33 @@ impl InnerCamera for Camera {
         }
     }
 
-    fn change_device(&mut self) {
-        let devices = enum_devices();
-        if let Some(pos) = devices.iter().position(|n| name_or_path(n) == self.device_name) {
-            let new_pos = (pos + 1) % devices.len();
-            if new_pos != pos {
-                *self = Self::from_node(&devices[new_pos]);
-                self.start();
-            }
-        } else if !devices.is_empty() {
-            *self = Self::from_node(&devices[0]);
-            self.start();
-        } else {
-            self.stop();
+    fn device(&self) -> Option<CameraDevice> {
+        Some(CameraDevice { id: self.device_path, name: self.device_name.unwrap_or(self.device_path) })
+    }
+
+    fn set_device(&mut self, device: &CameraDevice) -> bool {
+        if device.id == self.device_path {
+            return true;
         }
+        let find_device = enum_devices()
+            .into_iter()
+            .find(|d| d.path().to_string_lossy().to_string() == device.id);
+        if let Some(new_device) = find_device {
+            *self = Self::from_node(new_device);
+            self.start();
+            return true;
+        }
+        self.stop();
+        return false;
+    }
+
+    fn device_list(&self) -> Vec<CameraDevice> {
+        enum_devices()
+            .iter()
+            .map(|d| {
+                let path = d.path().to_string_lossy().to_string();
+                CameraDevice { id: path, name: d.name().unwrap_or(path) }
+            })
     }
 }
 
