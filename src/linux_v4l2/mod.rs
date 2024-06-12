@@ -19,7 +19,7 @@ pub struct Camera {
     stream: RwLock<Option<v4l::io::mmap::Stream<'static>>>,
 }
 
-fn get_next_best_format(device: &CameraDevice) -> Format {
+fn get_next_best_format(device: &Device) -> Format {
     let _rgb = FourCC::new(b"RGB3");
     let mut fmt = device.format().expect("device.format()");
     let size = device
@@ -76,7 +76,7 @@ impl Camera {
         Self {
             device: RwLock::new(device),
             device_path: node.path().to_string_lossy().to_string(),
-            device_name: device_node.name().ok(),
+            device_name: node.name(),
             stream: RwLock::new(None),
         }
     }
@@ -122,7 +122,7 @@ impl InnerCamera for Camera {
     }
 
     fn device(&self) -> Option<CameraDevice> {
-        Some(CameraDevice { id: self.device_path, name: self.device_name.unwrap_or(self.device_path) })
+        Some(CameraDevice { id: self.device_path.clone(), name: self.device_name.as_ref().unwrap_or(&self.device_path).clone() })
     }
 
     fn set_device(&mut self, device: &CameraDevice) -> bool {
@@ -133,7 +133,7 @@ impl InnerCamera for Camera {
             .into_iter()
             .find(|d| d.path().to_string_lossy().to_string() == device.id);
         if let Some(new_device) = find_device {
-            *self = Self::from_node(new_device);
+            *self = Self::from_node(&new_device);
             self.start();
             return true;
         }
@@ -146,8 +146,9 @@ impl InnerCamera for Camera {
             .iter()
             .map(|d| {
                 let path = d.path().to_string_lossy().to_string();
-                CameraDevice { id: path, name: d.name().unwrap_or(path) }
+                CameraDevice { id: path.clone(), name: d.name().unwrap_or(path) }
             })
+            .collect()
     }
 }
 

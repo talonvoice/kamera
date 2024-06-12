@@ -81,6 +81,6 @@ pub(crate) trait InnerCamera: std::fmt::Debug {
     fn stop(&self);
     fn wait_for_frame(&self) -> Option<Self::Frame>;
     fn device(&self) -> Option<CameraDevice>;
-    fn set_device(&mut self, device: &CameraDevice);
-    fn device_list(&self) -> Vec<String>;
+    fn set_device(&mut self, device: &CameraDevice) -> bool;
+    fn device_list(&self) -> Vec<CameraDevice>;
 }
