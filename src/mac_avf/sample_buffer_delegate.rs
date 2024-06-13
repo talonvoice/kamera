@@ -163,5 +163,5 @@ fn msg_send_to_on_drop_sample_buffer() {
 #[test]
 fn slot() {
     let delegate = SampleBufferDelegate::new();
-    println!("slot {:?}", delegate.slot);
+    println!("slot {:?}", delegate.slot());
 }

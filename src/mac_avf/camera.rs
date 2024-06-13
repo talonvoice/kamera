@@ -114,7 +114,7 @@ fn change_device() {
         .take(TEST_FRAMES)
         .count();
 
-    camera.set_device(camera.device_list().last());
+    camera.set_device(Camera::device_list().last().unwrap());
 
     std::iter::from_fn(|| camera.wait_for_frame())
         .map(|s| println!("{s:?}"))

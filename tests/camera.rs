@@ -99,7 +99,7 @@ fn change_device() {
     assert!(camera.wait_for_frame().is_some());
     assert!(camera.wait_for_frame().is_some());
     assert!(camera.wait_for_frame().is_some());
-    camera.change_device();
+    camera.set_device(&Camera::device_list().last().unwrap());
     assert!(camera.wait_for_frame().is_some());
     assert!(camera.wait_for_frame().is_some());
     assert!(camera.wait_for_frame().is_some());
