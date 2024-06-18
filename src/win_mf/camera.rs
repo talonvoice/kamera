@@ -84,7 +84,7 @@ impl Camera {
             .into_iter()
             .map(Device::new)
             .find(|d| d.id().to_string_lossy().to_string() == device.id);
-        if let Some(new_device) == find_device {
+        if let Some(new_device) = find_device {
             let engine = new_capture_engine().unwrap();
             let (event_tx, event_rx) = channel::<CaptureEngineEvent>();
             let (sample_tx, sample_rx) = channel::<Option<IMFSample>>();
