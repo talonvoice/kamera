@@ -224,7 +224,8 @@ pub fn sample_to_locked_buffer(
             width,
             height,
             scanline0,
-            len: pitch as usize * height as usize,
+            // negative pitch means image is upside down. ignore for now to avoid crash.
+            len: pitch.abs() as usize * height as usize,
         })
     }
 }
