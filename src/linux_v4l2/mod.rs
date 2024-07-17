@@ -111,7 +111,7 @@ impl InnerCamera for Camera {
             let data = match &format.fourcc.repr {
                 b"RGB3" => buf.to_vec(),
                 b"YUYV" => yuyv_to_rgb32(buf, size.0, size.1),
-                b"MJPG" => todo!("NJPG not implemented"),
+                b"MJPG" => mjpg_to_rgb32(buf),
                 _ => panic!("invalid buffer pixelformat"),
             };
 
@@ -210,4 +210,16 @@ fn yuyv_to_rgb32(buf: &[u8], w: u32, h: u32) -> Vec<u8> {
     rgb.convert(&mut rgba);
 
     rgba.into_buf()
+}
+
+fn mjpg_to_rgb32(buf: &[u8]) -> Vec<u8> {
+    use image::ImageFormat;
+    use image::io::Reader;
+    use std::io::Cursor;
+
+    let mut reader = Reader::new(Cursor::new(buf));
+    reader.set_format(ImageFormat::Jpeg);
+    // FIXME: make this api fallible
+    let im = reader.decode().expect("mjpg decode failed");
+    im.to_rgba8().into_raw()
 }
