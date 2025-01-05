@@ -82,7 +82,7 @@ impl Camera {
         }
         let find_device = enum_device_sources()
             .into_iter()
-            .map(Device::new)
+            .filter_map(Device::new)
             .find(|d| d.id().to_string_lossy().to_string() == device.id);
         if let Some(new_device) = find_device {
             let engine = new_capture_engine().unwrap();
@@ -105,7 +105,7 @@ impl Camera {
     pub fn device_list() -> Vec<CameraDevice> {
         enum_device_sources()
             .into_iter()
-            .map(Device::new)
+            .filter_map(Device::new)
             .map(|d| CameraDevice { id: d.id().to_string_lossy().to_string(), name: d.name() })
             .collect()
     }

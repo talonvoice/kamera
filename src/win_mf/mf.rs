@@ -15,10 +15,10 @@ pub struct Device {
 }
 
 impl Device {
-    pub(crate) fn new(activate: IMFActivate) -> Self {
+    pub(crate) fn new(activate: IMFActivate) -> Option<Self> {
         co_initialize_multithreaded();
-        let source = unsafe { activate.ActivateObject().unwrap() };
-        Self { activate, source }
+        let source = unsafe { activate.ActivateObject().ok()? };
+        Some(Self { activate, source })
     }
 }
 
@@ -62,7 +62,7 @@ impl Device {
     }
 
     pub fn enum_devices() -> Vec<Device> {
-        enum_device_sources().into_iter().map(Device::new).collect()
+        enum_device_sources().into_iter().filter_map(Device::new).collect()
     }
 }
 
