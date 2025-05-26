@@ -48,8 +48,7 @@ declare_class!(
             sample_buffer: CMSampleBufferRef,
             _connection: *const c_void,
         ) {
-            println!("DROP SAMPLE BUFFER UNIMPLEMENTED");
-            self.set_slot(sample_buffer);
+            self.set_slot(std::ptr::null_mut());
         }
     }
 
