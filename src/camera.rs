@@ -28,8 +28,8 @@ pub struct CameraDevice {
 }
 
 impl Camera {
-    pub fn new_default_device() -> Self {
-        Self { inner: backend::Camera::new_default_device() }
+    pub fn new_default_device() -> Option<Self> {
+        Some(Self { inner: backend::Camera::new_default_device()? })
     }
 
     pub fn start(&self) {
@@ -80,7 +80,7 @@ impl<'a> FrameData<'a> {
 pub(crate) trait InnerCamera: std::fmt::Debug {
     type Frame;
 
-    fn new_default_device() -> Self;
+    fn new_default_device() -> Option<Self>;
     fn start(&self);
     fn stop(&self);
     fn wait_for_frame(&self) -> Option<Self::Frame>;

@@ -85,9 +85,9 @@ impl Camera {
 impl InnerCamera for Camera {
     type Frame = Frame;
 
-    fn new_default_device() -> Self {
-        let node = enum_devices().into_iter().next().unwrap();
-        Self::from_node(&node)
+    fn new_default_device() -> Option<Self> {
+        let node = enum_devices().into_iter().next()?;
+        Some(Self::from_node(&node))
     }
 
     fn start(&self) {

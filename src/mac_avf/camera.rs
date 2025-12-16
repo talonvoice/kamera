@@ -61,11 +61,10 @@ pub struct FrameData<'a> {
 }
 
 impl Camera {
-    pub fn new_default_device() -> Self {
+    pub fn new_default_device() -> Option<Self> {
         unsafe {
-            // FIXME: Option
-            let device = AVCaptureDevice::defaultDeviceWithMediaType(objc2_av_foundation::AVMediaTypeVideo.unwrap()).unwrap();
-            let input = AVCaptureDeviceInput::deviceInputWithDevice_error(&device).unwrap();
+            let device = AVCaptureDevice::defaultDeviceWithMediaType(objc2_av_foundation::AVMediaTypeVideo?)?;
+            let input = AVCaptureDeviceInput::deviceInputWithDevice_error(&device).ok()?;
             let output = AVCaptureVideoDataOutput::new();
             output.setVideoSettings(Some(&*NSDictionary::<NSString>::from_slices(
                 &[&*(kCVPixelBufferPixelFormatTypeKey as *const objc2_core_foundation::CFString as *const NSString)],
@@ -81,7 +80,7 @@ impl Camera {
             session.addInput(&input);
             session.addOutput(&output);
 
-            Camera { device, input, output, session, slot, _queue: queue }
+            Some(Camera { device, input, output, session, slot, _queue: queue })
         }
     }
 
@@ -107,12 +106,14 @@ impl Camera {
         if device.id == unsafe { self.device.uniqueID().to_string() } {
             return true;
         }
-        // FIXME: no unwrap?
         let find_device = unsafe { AVCaptureDevice::devicesWithMediaType(objc2_av_foundation::AVMediaTypeVideo.unwrap()) }
             .into_iter()
             .find(|d| unsafe { d.uniqueID().to_string() == device.id });
         if let Some(new_device) = find_device {
-            let new_input = unsafe { AVCaptureDeviceInput::deviceInputWithDevice_error(&new_device).unwrap() };
+            let new_input = match unsafe { AVCaptureDeviceInput::deviceInputWithDevice_error(&new_device) } {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
             unsafe { self.session.removeInput(&self.input) };
             self.device = new_device;
             self.input = new_input;
@@ -213,7 +214,7 @@ const TEST_FRAMES: usize = 3;
 
 #[test]
 fn change_device() {
-    let mut camera = Camera::new_default_device();
+    let mut camera = Camera::new_default_device().unwrap();
     camera.start();
 
     println!("first camera");

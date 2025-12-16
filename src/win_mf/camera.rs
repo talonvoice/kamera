@@ -26,11 +26,11 @@ pub struct FrameData<'a> {
 }
 
 impl Camera {
-    pub fn new_default_device() -> Self {
+    pub fn new_default_device() -> Option<Self> {
         co_initialize_multithreaded();
-        media_foundation_startup().expect("media_foundation_startup");
+        media_foundation_startup().ok()?;
 
-        let engine = new_capture_engine().unwrap();
+        let engine = new_capture_engine().ok()?;
         let (event_tx, event_rx) = channel::<CaptureEngineEvent>();
         let (sample_tx, sample_rx) = channel::<Option<IMFSample>>();
         let event_cb = CaptureEventCallback { event_tx }.into();
@@ -39,12 +39,12 @@ impl Camera {
         let devices = Device::enum_devices();
         let Some(device) = devices.first().cloned() else { todo!() };
 
-        init_capture_engine(&engine, Some(&device.source), &event_cb).unwrap();
+        init_capture_engine(&engine, Some(&device.source), &event_cb).ok()?;
 
         let camera = Camera { engine, device, event_rx, sample_rx, event_cb, sample_cb };
         camera.wait_for_event(CaptureEngineEvent::Initialized);
         camera.prepare_source_sink();
-        camera
+        Some(camera)
     }
 
     pub fn start(&self) {

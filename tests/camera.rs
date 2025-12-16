@@ -2,32 +2,32 @@ use kamera::Camera;
 
 #[test]
 fn new_default_device() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     println!("{:?}", camera);
 }
 
 #[test]
 fn start() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     camera.start();
 }
 
 #[test]
 fn start_stop() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     camera.start();
     camera.stop();
 }
 
 #[test]
 fn stop_without_start() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     camera.stop();
 }
 
 #[test]
 fn start_and_wait_for_frames() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     camera.start();
     assert!(camera.wait_for_frame().is_some());
     assert!(camera.wait_for_frame().is_some());
@@ -37,7 +37,7 @@ fn start_and_wait_for_frames() {
 
 #[test]
 fn excessive_start_calls() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     camera.start();
     camera.start();
     assert!(camera.wait_for_frame().is_some());
@@ -51,7 +51,7 @@ fn excessive_start_calls() {
 
 #[test]
 fn frame_size() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     camera.start();
     let frame = camera.wait_for_frame().unwrap();
     println!("{:?}", frame.size_u32());
@@ -60,7 +60,7 @@ fn frame_size() {
 
 #[test]
 fn frame_data() {
-    let camera = Camera::new_default_device();
+    let camera = Camera::new_default_device().unwrap();
     camera.start();
     let frame = camera.wait_for_frame().unwrap();
     let (_w, _h) = frame.size_u32();
@@ -79,11 +79,11 @@ fn frame_data() {
 // win_mf: fails to get frames because "The video recording device is preempted by another immersice application"
 #[test]
 fn two_cameras_start_and_wait_for_frames() {
-    let camera1 = Camera::new_default_device();
+    let camera1 = Camera::new_default_device().unwrap();
     camera1.start();
     println!("Camera 1 {:?}", camera1.wait_for_frame());
     assert!(camera1.wait_for_frame().is_some());
-    let camera2 = Camera::new_default_device();
+    let camera2 = Camera::new_default_device().unwrap();
     camera2.start();
     println!("Camera 2 {:?}", camera2.wait_for_frame());
     assert!(camera2.wait_for_frame().is_some());
@@ -94,7 +94,7 @@ fn two_cameras_start_and_wait_for_frames() {
 
 #[test]
 fn change_device() {
-    let mut camera = Camera::new_default_device();
+    let mut camera = Camera::new_default_device().unwrap();
     camera.start();
     assert!(camera.wait_for_frame().is_some());
     assert!(camera.wait_for_frame().is_some());
