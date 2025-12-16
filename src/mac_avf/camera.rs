@@ -1,21 +1,59 @@
-use super::*;
-use objc2::rc::Id;
 use std::sync::Arc;
+
+use dispatch2::{DispatchQueue, DispatchRetained};
+use objc2_foundation::{
+    NSDictionary,
+    NSNumber,
+    NSString,
+};
+use objc2_av_foundation::{
+    AVCaptureDevice,
+    AVCaptureDeviceInput,
+    AVCaptureVideoDataOutput,
+    AVCaptureSession,
+};
+use objc2_core_foundation::CFRetained;
+use objc2_core_media::CMSampleBuffer;
+use objc2_core_video::{
+    kCVPixelBufferPixelFormatTypeKey,
+    kCVPixelFormatType_32BGRA,
+    CVPixelBufferLockFlags,
+    CVImageBuffer,
+    CVPixelBufferLockBaseAddress,
+    CVPixelBufferGetBaseAddress,
+    CVPixelBufferGetBytesPerRow,
+    CVPixelBufferGetWidth,
+    CVPixelBufferGetHeight,
+    CVPixelBufferIsPlanar,
+    CVPixelBufferGetPlaneCount,
+    CVPixelBufferGetDataSize,
+    CVPixelBufferGetPixelFormatType,
+    CVPixelBufferGetBaseAddressOfPlane,
+    CVPixelBufferGetBytesPerRowOfPlane,
+    CVPixelBufferGetHeightOfPlane,
+    CVPixelBufferUnlockBaseAddress,
+};
+use objc2::runtime::ProtocolObject;
+use objc2::rc::Retained;
+
 use crate::CameraDevice;
+use crate::mac_avf::Slot;
+use crate::mac_avf::SampleBufferDelegate;
 
 #[derive(Debug)]
 pub struct Camera {
-    device: Id<AVCaptureDevice>,
-    input: Id<AVCaptureDeviceInput>,
+    device: Retained<AVCaptureDevice>,
+    input: Retained<AVCaptureDeviceInput>,
     #[allow(unused)]
-    output: Id<AVCaptureVideoDataOutput>,
-    session: Id<AVCaptureSession>,
+    output: Retained<AVCaptureVideoDataOutput>,
+    session: Retained<AVCaptureSession>,
     slot: Arc<Slot>,
+    _queue: DispatchRetained<DispatchQueue>,
 }
 
 #[derive(Debug)]
 pub struct Frame {
-    sample: SampleBuffer,
+    sample: Retained<CMSampleBuffer>,
 }
 
 pub struct FrameData<'a> {
@@ -24,26 +62,35 @@ pub struct FrameData<'a> {
 
 impl Camera {
     pub fn new_default_device() -> Self {
-        let device = AVCaptureDevice::default_video_device();
-        let input = AVCaptureDeviceInput::from_device(&device).unwrap();
-        let output = AVCaptureVideoDataOutput::new();
-        output.set_video_settings(&video_settings_from_pixel_format("ARGB"));
-        let delegate = SampleBufferDelegate::new();
-        let slot = delegate.slot();
-        let session = AVCaptureSession::new();
-        output.set_sample_buffer_delegate(delegate);
-        session.add_input(&input);
-        session.add_output(&output);
+        unsafe {
+            // FIXME: Option
+            let device = AVCaptureDevice::defaultDeviceWithMediaType(objc2_av_foundation::AVMediaTypeVideo.unwrap()).unwrap();
+            let input = AVCaptureDeviceInput::deviceInputWithDevice_error(&device).unwrap();
+            let output = AVCaptureVideoDataOutput::new();
+            output.setVideoSettings(Some(&*NSDictionary::<NSString>::from_slices(
+                &[&*(kCVPixelBufferPixelFormatTypeKey as *const objc2_core_foundation::CFString as *const NSString)],
+                &[&*NSNumber::new_u32(kCVPixelFormatType_32BGRA)],
+            )));
+            let delegate = SampleBufferDelegate::new();
+            let slot = delegate.slot();
+            let session = AVCaptureSession::new();
+            let queue = DispatchQueue::new("kamera-rs", None);
+            output.setSampleBufferDelegate_queue(Some(ProtocolObject::from_ref(&*delegate)), Some(&queue));
+            std::mem::forget(delegate);
 
-        Camera { device, input, output, session, slot }
+            session.addInput(&input);
+            session.addOutput(&output);
+
+            Camera { device, input, output, session, slot, _queue: queue }
+        }
     }
 
     pub fn start(&self) {
-        self.session.start_running();
+        unsafe { self.session.startRunning(); }
     }
 
     pub fn stop(&self) {
-        self.session.stop_running();
+        unsafe { self.session.stopRunning(); }
     }
 
     pub fn wait_for_frame(&self) -> Option<Frame> {
@@ -51,43 +98,103 @@ impl Camera {
     }
 
     pub fn device(&self) -> CameraDevice {
-        return CameraDevice { id: self.device.unique_id().to_string(), name: self.device.localized_name().to_string() }
+        unsafe {
+            return CameraDevice { id: self.device.uniqueID().to_string(), name: self.device.localizedName().to_string() }
+        }
     }
 
     pub fn set_device(&mut self, device: &CameraDevice) -> bool {
-        if device.id == self.device.unique_id().to_string() {
+        if device.id == unsafe { self.device.uniqueID().to_string() } {
             return true;
         }
-        let find_device = AVCaptureDevice::all_video_devices()
+        // FIXME: no unwrap?
+        let find_device = unsafe { AVCaptureDevice::devicesWithMediaType(objc2_av_foundation::AVMediaTypeVideo.unwrap()) }
             .into_iter()
-            .find(|d| d.unique_id().to_string() == device.id);
+            .find(|d| unsafe { d.uniqueID().to_string() == device.id });
         if let Some(new_device) = find_device {
-            let new_input = AVCaptureDeviceInput::from_device(&new_device).unwrap();
-            self.session.remove_input(&self.input);
-            self.device = new_device.retain();
+            let new_input = unsafe { AVCaptureDeviceInput::deviceInputWithDevice_error(&new_device).unwrap() };
+            unsafe { self.session.removeInput(&self.input) };
+            self.device = new_device;
             self.input = new_input;
-            self.session.add_input(&self.input);
+            unsafe { self.session.addInput(&self.input); }
             return true;
         }
         return false;
     }
 
     pub fn device_list() -> Vec<CameraDevice> {
-        AVCaptureDevice::all_video_devices()
-            .iter()
-            .map(|device| CameraDevice { id: device.unique_id().to_string(), name: device.localized_name().to_string() })
-            .collect()
+        unsafe {
+            AVCaptureDevice::devicesWithMediaType(objc2_av_foundation::AVMediaTypeVideo.unwrap())
+                .iter()
+                .map(|device| CameraDevice { id: device.uniqueID().to_string(), name: device.localizedName().to_string() })
+                .collect()
+        }
+    }
+}
+
+/// Holds the locked pixel data of a frame and unlocks upon drop.
+pub struct Pixels<'a> {
+    pub ibuf: CFRetained<CVImageBuffer>,
+    pub data: &'a [u8],
+    pub u32: &'a [u32],
+    pub width: usize,
+    pub height: usize,
+}
+
+impl<'a> Pixels<'a> {
+    fn new(sample: &Retained<CMSampleBuffer>) -> Self {
+        // FIXME: no unwrap?
+        let ibuf = unsafe { sample.image_buffer().unwrap() };
+
+        assert_eq!(0, unsafe { CVPixelBufferLockBaseAddress(&ibuf, CVPixelBufferLockFlags::ReadOnly) });
+        let _address = CVPixelBufferGetBaseAddress(&ibuf);
+        let stride = CVPixelBufferGetBytesPerRow(&ibuf);
+        let width = CVPixelBufferGetWidth(&ibuf);
+        let height = CVPixelBufferGetHeight(&ibuf);
+        let is_planar = CVPixelBufferIsPlanar(&ibuf);
+        let plane_count = CVPixelBufferGetPlaneCount(&ibuf);
+        let _data_size = CVPixelBufferGetDataSize(&ibuf);
+        let _fourcc = CVPixelBufferGetPixelFormatType(&ibuf);
+        let plane_address = CVPixelBufferGetBaseAddressOfPlane(&ibuf, 0);
+        let mut plane_sizes = 0;
+
+        // println!("pixels {:?}", (_address, stride, width, height, is_planar, plane_count, _data_size, fourcc_to_string(_fourcc)));
+        if is_planar {
+            for index in 0..plane_count {
+                let _plane_address = CVPixelBufferGetBaseAddressOfPlane(&ibuf, index);
+                let plane_stride = CVPixelBufferGetBytesPerRowOfPlane(&ibuf, index);
+                let plane_height = CVPixelBufferGetHeightOfPlane(&ibuf, index);
+                // println!("        {:?}", (plane_address, plane_stride, plane_height));
+                plane_sizes += plane_stride * plane_height;
+            }
+        } else {
+            plane_sizes += stride * height;
+        }
+
+        let data = unsafe { std::slice::from_raw_parts(plane_address as *mut u8, plane_sizes) };
+        let (a, u32, b) = unsafe { data.align_to() };
+        debug_assert!(a.is_empty() && b.is_empty());
+        Self { ibuf, data, u32, width, height }
+    }
+}
+
+impl Drop for Pixels<'_> {
+    fn drop(&mut self) {
+        assert_eq!(0, unsafe { CVPixelBufferUnlockBaseAddress(&self.ibuf, CVPixelBufferLockFlags::ReadOnly) });
     }
 }
 
 impl Frame {
     pub fn data(&self) -> FrameData {
-        FrameData { pixels: self.sample.pixels() }
+        FrameData { pixels: Pixels::new(&self.sample) }
     }
 
     pub fn size_u32(&self) -> (u32, u32) {
-        let (w, h) = self.sample.size_usize();
-        (w as _, h as _)
+        // FIXME: no unwrap?
+        let ibuf = unsafe { self.sample.image_buffer().unwrap() };
+        let width = CVPixelBufferGetWidth(&ibuf);
+        let height = CVPixelBufferGetHeight(&ibuf);
+        (width as _, height as _)
     }
 }
 
@@ -109,15 +216,20 @@ fn change_device() {
     let mut camera = Camera::new_default_device();
     camera.start();
 
+    println!("first camera");
     std::iter::from_fn(|| camera.wait_for_frame())
         .map(|s| println!("{s:?}"))
         .take(TEST_FRAMES)
         .count();
 
-    camera.set_device(Camera::device_list().last().unwrap());
+    for device in Camera::device_list() {
+        println!("change device to {:?}", device);
+        camera.set_device(&device);
 
-    std::iter::from_fn(|| camera.wait_for_frame())
-        .map(|s| println!("{s:?}"))
-        .take(TEST_FRAMES)
-        .count();
+        std::iter::from_fn(|| camera.wait_for_frame())
+            .map(|s| println!("{s:?}"))
+            .take(TEST_FRAMES)
+            .count();
+        break;
+    }
 }

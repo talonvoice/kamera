@@ -1,67 +1,67 @@
 use std::ffi::c_void;
-use std::ptr::null_mut;
-use std::sync::atomic::AtomicPtr;
 use std::sync::{Arc, Condvar, Mutex};
+use std::sync::atomic::AtomicPtr;
 
-use objc2_foundation::NSObjectProtocol;
-use objc2::{
-    mutability::Mutable,
-    rc::Id,
-    runtime::NSObject,
-    *,
-};
-
-use super::{CMSampleBuffer, CMSampleBufferRef, SampleBuffer};
+use objc2_av_foundation::AVCaptureVideoDataOutputSampleBufferDelegate;
+use objc2_core_media::CMSampleBuffer;
+use objc2::{AnyThread, DefinedClass, define_class, msg_send};
+use objc2::rc::Retained;
+use objc2::runtime::{NSObject, NSObjectProtocol};
 
 pub struct SampleBufferIvars {
     slot: Box<Arc<Slot>>,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(NSObject))]
+
+    #[ivars = SampleBufferIvars]
     pub struct SampleBufferDelegate;
 
-    unsafe impl ClassType for SampleBufferDelegate {
-        type Super = NSObject;
-        type Mutability = Mutable;
-        const NAME: &'static str = "SampleBufferDelegate";
-    }
-
-    impl DeclaredClass for SampleBufferDelegate {
-        type Ivars = SampleBufferIvars;
-    }
-
-    unsafe impl SampleBufferDelegate {
-        #[method(captureOutput:didOutputSampleBuffer:fromConnection:)]
-        unsafe fn on_output_sample_buffer(
-            &mut self,
-            _capture_output: *const c_void,
-            sample_buffer: CMSampleBufferRef,
-            _connection: *const c_void,
-        ) {
-            self.set_slot(sample_buffer);
-        }
-
-        #[method(captureOutput:didDropSampleBuffer:fromConnection:)]
-        unsafe fn on_drop_sample_buffer(
-            &mut self,
-            _capture_output: *const c_void,
-            sample_buffer: CMSampleBufferRef,
-            _connection: *const c_void,
-        ) {
-            self.set_slot(std::ptr::null_mut());
-        }
-    }
-
     unsafe impl NSObjectProtocol for SampleBufferDelegate {}
+    unsafe impl AVCaptureVideoDataOutputSampleBufferDelegate for SampleBufferDelegate {}
+
+    impl SampleBufferDelegate {
+        #[unsafe(method(captureOutput:didOutputSampleBuffer:fromConnection:))]
+        fn on_output_sample_buffer(
+            &self,
+            _capture_output: *const c_void,
+            sample_buffer: *mut CMSampleBuffer,
+            _connection: *const c_void,
+        ) {
+            self.set_slot(unsafe { Retained::retain(sample_buffer) });
+        }
+
+        #[unsafe(method(captureOutput:didDropSampleBuffer:fromConnection:))]
+        unsafe fn on_drop_sample_buffer(
+            &self,
+            _capture_output: *const c_void,
+            _sample_buffer: *mut CMSampleBuffer,
+            _connection: *const c_void,
+        ) {
+            // NOTE: this will wake up wake_for_sample with a None sample
+            // when do we actually want to do that?
+            self.set_slot(None);
+        }
+    }
 );
 
+use std::fmt;
+impl fmt::Debug for SampleBufferDelegate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SampleBufferDelegate")
+            .field("address", &format_args!("{:p}", self))
+         .finish()
+    }
+}
+
 impl SampleBufferDelegate {
-    pub fn new() -> Id<Self> {
+    pub fn new() -> Retained<Self> {
         let this = SampleBufferDelegate::alloc();
         let this = this.set_ivars(SampleBufferIvars {
             slot: Box::new(Arc::new(Slot::new())),
         });
-        let this = unsafe { msg_send_id![super(this), init] };
+        let this = unsafe { msg_send![super(this), init] };
         this
     }
 
@@ -69,7 +69,7 @@ impl SampleBufferDelegate {
         (*self.ivars().slot).clone()
     }
 
-    fn set_slot(&mut self, sample: CMSampleBufferRef) {
+    fn set_slot(&self, sample: Option<Retained<CMSampleBuffer>>) {
         let slot = &self.ivars().slot;
         slot.set_sample(sample);
         slot.notify_all();
@@ -86,34 +86,24 @@ pub struct Slot {
 impl Slot {
     fn new() -> Self {
         Self {
-            sample: AtomicPtr::new(null_mut()),
+            sample: AtomicPtr::new(std::ptr::null_mut()),
             state: Mutex::new(State { frame_counter: 0 }),
             condvar: Condvar::new(),
         }
     }
 
-    pub fn wait_for_sample(&self) -> Option<SampleBuffer> {
+    pub fn wait_for_sample(&self) -> Option<Retained<CMSampleBuffer>> {
         let mut _guard = self.state.lock().unwrap();
         _guard = self.condvar.wait(_guard).unwrap();
-        let ptr = self.sample.load(std::sync::atomic::Ordering::Relaxed);
-        if ptr.is_null() {
-            None
-        } else {
-            Some(SampleBuffer::new(ptr))
-        }
+        let ptr = self.sample.swap(std::ptr::null_mut(), std::sync::atomic::Ordering::Relaxed);
+        unsafe { Retained::from_raw(ptr) }
     }
 
-    fn set_sample(&self, mut sample: CMSampleBufferRef) {
-        // TODO should instead use SampleBuffer directly, it already wraps Retain and Release
-        sample = if !sample.is_null() {
-            unsafe { super::CFRetain(sample.cast()).cast_mut().cast() }
-        } else {
-            sample
-        };
-        let old_sample = self.sample.swap(sample, std::sync::atomic::Ordering::Relaxed);
-        if !old_sample.is_null() {
-            unsafe { super::CFRelease(old_sample.cast()) };
-        }
+    fn set_sample(&self, sample: Option<Retained<CMSampleBuffer>>) {
+        let sample_ptr = sample.map(|x| Retained::into_raw(x)).unwrap_or(std::ptr::null_mut());
+        let old_sample = self.sample.swap(sample_ptr, std::sync::atomic::Ordering::Relaxed);
+        // drop old sample
+        unsafe { Retained::from_raw(old_sample); }
     }
 
     fn notify_all(&self) {
@@ -123,10 +113,8 @@ impl Slot {
 
 impl Drop for Slot {
     fn drop(&mut self) {
-        let sample = self.sample.load(std::sync::atomic::Ordering::Relaxed);
-        if !sample.is_null() {
-            unsafe { super::CFRelease(sample.cast()) };
-        }
+        let old_sample = self.sample.swap(std::ptr::null_mut(), std::sync::atomic::Ordering::Relaxed);
+        unsafe { Retained::from_raw(old_sample); }
     }
 }
 
@@ -140,7 +128,7 @@ fn msg_send_to_on_output_sample_buffer() {
     use std::ptr::null;
     let delegate = SampleBufferDelegate::new();
     let output: *const c_void = null();
-    let buffer: CMSampleBufferRef = null_mut();
+    let buffer: *mut CMSampleBuffer = std::ptr::null_mut();
     let connection: *const c_void = null();
     let () = unsafe {
         msg_send![&delegate, captureOutput: output didOutputSampleBuffer: buffer fromConnection: connection]
@@ -152,7 +140,7 @@ fn msg_send_to_on_drop_sample_buffer() {
     use std::ptr::null;
     let delegate = SampleBufferDelegate::new();
     let output: *const c_void = null();
-    let buffer: CMSampleBufferRef = null_mut();
+    let buffer: *mut CMSampleBuffer = std::ptr::null_mut();
     let connection: *const c_void = null();
     let () = unsafe {
         msg_send![&delegate, captureOutput: output didDropSampleBuffer: buffer fromConnection: connection]
