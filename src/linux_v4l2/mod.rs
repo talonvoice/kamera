@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 
 use std::sync::RwLock;
 
-use crate::{InnerCamera, CameraDevice};
+use crate::CameraDevice;
 
 pub struct Camera {
     device: RwLock<v4l::Device>,
@@ -82,15 +82,13 @@ impl Camera {
     }
 }
 
-impl InnerCamera for Camera {
-    type Frame = Frame;
-
-    fn new_default_device() -> Option<Self> {
+impl Camera {
+    pub fn new_default_device() -> Option<Self> {
         let node = enum_devices().into_iter().next()?;
         Some(Self::from_node(&node))
     }
 
-    fn start(&self) {
+    pub fn start(&self) {
         if self.stream.read().unwrap().is_none() {
             let device = self.device.write().unwrap();
             let stream =
@@ -100,11 +98,11 @@ impl InnerCamera for Camera {
         }
     }
 
-    fn stop(&self) {
+    pub fn stop(&self) {
         let _ = self.stream.write().unwrap().take();
     }
 
-    fn wait_for_frame(&self) -> Option<Frame> {
+    pub fn wait_for_frame(&self) -> Option<Frame> {
         let format = self.device.read().unwrap().format().unwrap();
         let size = (format.width, format.height);
         if let Ok((buf, _meta)) = self.stream.write().unwrap().as_mut().unwrap().next() {
@@ -121,11 +119,11 @@ impl InnerCamera for Camera {
         }
     }
 
-    fn device(&self) -> CameraDevice {
+    pub fn device(&self) -> CameraDevice {
         CameraDevice { id: self.device_path.clone(), name: self.device_name.as_ref().unwrap_or(&self.device_path).clone() }
     }
 
-    fn set_device(&mut self, device: &CameraDevice) -> bool {
+    pub fn set_device(&mut self, device: &CameraDevice) -> bool {
         if device.id == self.device_path {
             return true;
         }
@@ -141,7 +139,7 @@ impl InnerCamera for Camera {
         return false;
     }
 
-    fn device_list() -> Vec<CameraDevice> {
+    pub fn device_list() -> Vec<CameraDevice> {
         enum_devices()
             .iter()
             .map(|d| {
@@ -164,7 +162,7 @@ pub struct Frame {
 }
 
 impl Frame {
-    pub fn data(&self) -> FrameData {
+    pub fn data(&self) -> FrameData<'_> {
         FrameData { data: self.data.clone(), _phantom: PhantomData }
     }
 
@@ -213,11 +211,10 @@ fn yuyv_to_rgb32(buf: &[u8], w: u32, h: u32) -> Vec<u8> {
 }
 
 fn mjpg_to_rgb32(buf: &[u8]) -> Vec<u8> {
-    use image::ImageFormat;
-    use image::io::Reader;
+    use image::{ImageFormat, ImageReader};
     use std::io::Cursor;
 
-    let mut reader = Reader::new(Cursor::new(buf));
+    let mut reader = ImageReader::new(Cursor::new(buf));
     reader.set_format(ImageFormat::Jpeg);
     // FIXME: make this api fallible
     let im = reader.decode().expect("mjpg decode failed");

@@ -186,7 +186,7 @@ impl Drop for Pixels<'_> {
 }
 
 impl Frame {
-    pub fn data(&self) -> FrameData {
+    pub fn data(&self) -> FrameData<'_> {
         FrameData { pixels: Pixels::new(&self.sample) }
     }
 

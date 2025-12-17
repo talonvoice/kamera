@@ -58,7 +58,7 @@ impl Camera {
 }
 
 impl Frame {
-    pub fn data(&self) -> FrameData {
+    pub fn data(&self) -> FrameData<'_> {
         FrameData { inner: self.inner.data() }
     }
 
@@ -75,16 +75,4 @@ impl<'a> FrameData<'a> {
     pub fn data_u32(&self) -> &[u32] {
         self.inner.data_u32()
     }
-}
-
-pub(crate) trait InnerCamera: std::fmt::Debug {
-    type Frame;
-
-    fn new_default_device() -> Option<Self>;
-    fn start(&self);
-    fn stop(&self);
-    fn wait_for_frame(&self) -> Option<Self::Frame>;
-    fn device(&self) -> CameraDevice;
-    fn set_device(&mut self, device: &CameraDevice) -> bool;
-    fn device_list() -> Vec<CameraDevice>;
 }

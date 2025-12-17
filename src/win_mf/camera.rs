@@ -122,7 +122,7 @@ impl Camera {
 }
 
 impl Frame {
-    pub fn data(&self) -> FrameData {
+    pub fn data(&self) -> FrameData<'_> {
         FrameData { data: self.buffer.data() }
     }
 
